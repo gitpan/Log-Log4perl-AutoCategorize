@@ -1,0 +1,39 @@
+--- #YAML:1.0
+name: Log-Log4perl-AutoCategorize
+version: 0.02
+license: perl
+distribution_type: module
+requires:
+  B::Generate: 0
+  optimizer: 0
+  perl: 5.8.0
+recommends:
+  Devel::Size: 0
+build_requires: {}
+conflicts: {}
+provides:
+  A:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+  B::Generate:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+  Devel::Size:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+  DynaLoader:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+  Foo:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+  Foo::Bar:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+  Log::Log4perl::AutoCategorize:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+  optimizer:
+    file: lib/Log/Log4perl/AutoCategorize.pm
+    version: 0.02
+generated_by: Module::Build version 0.19

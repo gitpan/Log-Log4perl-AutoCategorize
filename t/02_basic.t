@@ -13,8 +13,8 @@ use Test::More (tests => 25);
 #$stdout = `perl dflt_stdout.pl 2> junk`;
 #$stdout = `perl dflt_stdout.pl`;
 
+# use default logging setup again
 use Log::Log4perl::AutoCategorize;
-#ok (1, "use Log::Log4perl::AutoCategorize didnt bomb");
 
 $!=0;
 system 'perl dflt_stdout.pl > out.basic.stdout 2> out.basic.stderr';
@@ -124,29 +124,28 @@ like ($stderr, qr/\QFoo.uselogger.debug.24: logging from Foo, [
 ##########
 diag ("now test contents of coverage report");
 
-like ($stderr, qr/(\QLog.Log4perl.AutoCategorize.END.info.301: Seen Log Events:, {
-  'Foo.uselogger.debug.22' => 2,
-  'Foo.uselogger.debug.23' => 2,
-  'Foo.uselogger.debug.24' => 2,
-  'Log.Log4perl.AutoCategorize.END.info.301' => 1,
-  'main.main.debug.36' => 2,
-  'main.main.debug.39' => 2,
-  'main.main.debug.47' => 2,
-  'main.main.debug.69' => 1,
-  'main.main.info.37' => 2,
-  'main.main.info.40' => 2,
-  'main.main.info.41' => 2,
-  'main.main.info.44' => 2,
-  'main.main.info.44a' => 2,
-  'main.main.info.47' => 2,
-  'main.main.warn.38' => 2,
-  'main.usersub.info.54' => 2,
-  'main.usersub.info.55' => 2,
-  'main.usersub.info.56' => 2
+like ($stderr, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: Seen Log Events:, {
+  'Log.Log4perl.AutoCategorize.END.info.\E\d+\Q' => 1,
+  'log4perl.category.Foo.uselogger.debug.22' => 2,
+  'log4perl.category.Foo.uselogger.debug.23' => 2,
+  'log4perl.category.Foo.uselogger.debug.24' => 2,
+  'log4perl.category.main.main.debug.36' => 2,
+  'log4perl.category.main.main.debug.39' => 2,
+  'log4perl.category.main.main.debug.47' => 2,
+  'log4perl.category.main.main.info.37' => 2,
+  'log4perl.category.main.main.info.40' => 2,
+  'log4perl.category.main.main.info.41' => 2,
+  'log4perl.category.main.main.info.44' => 2,
+  'log4perl.category.main.main.info.44a' => 2,
+  'log4perl.category.main.main.info.47' => 2,
+  'log4perl.category.main.main.warn.38' => 2,
+  'log4perl.category.main.usersub.info.54' => 2,
+  'log4perl.category.main.usersub.info.55' => 2,
+  'log4perl.category.main.usersub.info.56' => 2
 }\E)/,
       "OK - Seen report looks good - look at t/out.basic.stderr");
 
-like ($stderr, qr/(\QLog.Log4perl.AutoCategorize.END.info.301: un-Seen Log Events:, {
+like ($stderr, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: UnSeen Log Events:, {
   'debug_00018' => 'main,dflt_stdout.pl,63',
   'info_00017' => 'main,dflt_stdout.pl,62'
 }\E)/,
@@ -157,5 +156,4 @@ diag ("\nall done. now the Loggers (see test 1) END block reports ...\n\n");
 
 __END__
 
-like ($stderr, qr/\Q
-
+  'log4perl.category.main.main.debug.69' => 1,

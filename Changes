@@ -1,44 +1,52 @@
 Revision history for Perl extension Log::Log4perl::AutoCategorize.
 
-0.001  1/2003
+0.02  not yet released
+  - Devel::Size now optional
+  - switch to Module::Build from MakeMaker
+  - changed several package my variables to our (for easier debug)
+  - rewrote Pod after re-reviewing Mikes feedback, doing YAPC::NA lightning talk
+  - tests:
+    all coverage-report tests now use \d+ to match END lines. 
+	this is more tolerant of code changes
+  - new tests:
+	05_initstr.t - overrides default conf w useargs: initstr => $string
+	06_conf_file.t - overrides default conf w useargs: initfile => $filename
+	07_coexist.t - coexistence with Log::Log4perl
+	08_options_more.t - tests -z, which uses Devel::Size
+	09_todo_coexist.t - try coexisting with Log::Log4perl ':easy'
+	10_packages.t - multiple user packages
 
- - posed original wrapper to log4perl-devel using only AUTOLOAD to
-   implement the new interface.  Mike Schillis feedback was that
-   caller() was too expensive for such extensive use.
-
-   I muttered something about optimizer, he said, ok..., and I went
-   off to see how it could be used to solve the lack of speed.
-
-0.007  Thu May  1 17:56:34 2003
-
- - original version; created by h2xs 1.21 with options
-	-Xm Log::Log4perl::AutoCategorize
-	then hacked at a lot 
-
- - 0.002-5 were pure optimizer experiments, 006 rolled the logging
-   application back into the experiment, with 007 yielding basic
-   codebase (to 0.01 anyway).
-
-0.008  5/30/03 - released to log4perl-devel
-
- - reworked optimizer sub to munge only invocations like
-   Logger->$fn(), where $fn is properly constained, and to properly
-   handle nested constructs in the argument-list.
-
- - refactored logit() out of AUTOLOAD, which is now more focussed on
-   creating subroutines for munged-methods.
-
- - added 1st set of tests.
+0.01   06/09/03 - released to log4perl-devel, PAUSE
+  - few more doc refinements
+  - total of 4 tests, + 1 cleanup
 
 0.009   06/05/03 - preparatory release
-
- - based upon Mike Schilli's feedback, reworked the pod.  Ended up
-   being a more thorough restructure than I 1st thought it needed.
-
- - added '# log4perl.category.' as a prefix to usage report; its now 
-   editable into a pre-documented log-config file. 
+  - based upon Mike Schilli's feedback, reworked the pod.  Ended up
+    being a more thorough restructure than I 1st thought it needed.
+  - added '# log4perl.category.' as a prefix to usage report; its now 
+    editable into a pre-documented log-config file. 
 	
-0.01   06/09/03 - released to log4perl-devel, PAUSE
+0.008  5/30/03 - released to log4perl-devel
+  - reworked optimizer sub to munge only invocations like
+    Logger->$fn(), where $fn is properly constained, and to properly
+    handle nested constructs in the argument-list.
+  - refactored logit() out of AUTOLOAD, which is now more focussed on
+    creating subroutines for munged-methods.
+  - added 1st set of tests.
 
- - few more doc refinements
+0.007  Thu May  1 17:56:34 2003
+  - original version; created by h2xs 1.21 with options
+	-Xm Log::Log4perl::AutoCategorize
+	then hacked at a lot 
+  - 0.002-5 were pure optimizer experiments, 006 rolled the logging
+    application back into the experiment, with 007 yielding basic
+    codebase (to 0.01 anyway)
+
+0.001  1/2003
+
+  - posted original wrapper to log4perl-devel using only AUTOLOAD to
+    implement the new interface.  Mike Schillis feedback was that
+    caller() was too expensive for such extensive use.
+  - I muttered something about optimizer, he said, ok..., and I went
+    off to see how it could be used to solve the lack of speed.
 

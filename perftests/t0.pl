@@ -23,19 +23,19 @@ $Data::Dumper::Terse=1;
 getopts('o') or die "$0 [-o] : suppresses debug for closer match to t1,t2 \n";
 
 foreach (1..500) {
-    my $log = Log::Log4perl->get_logger('Logger1.AUTOLOAD.30');
-    $log->warn($_);
-    $log = Log::Log4perl->get_logger('Logger1.AUTOLOAD.31');
-    $log->info($_);
+    my $log = Log::Log4perl->get_logger('main.main.26');
+    $log->warn($_, ' ');
+    $log = Log::Log4perl->get_logger('main.main.27');
+    $log->info($_, ' ');
     foo();
     A->bar();
     A::bar();
 }
 
 sub foo {
-    my $log = Log::Log4perl->get_logger('main.foo.39');
+    my $log = Log::Log4perl->get_logger('main.foo.35');
     foreach (1..20) {
-	$log->warn($_);
+	$log->warn($_, ' ');
     }
 }
 
@@ -46,8 +46,8 @@ sub bar {
     my @d;
     foreach (1..20) {
 	push @d, $_;
-	my $log = Log::Log4perl->get_logger('A.bar.49');
-	$log->warn($_, Dumper \@d);
+	my $log = Log::Log4perl->get_logger('A.bar.45');
+	$log->warn("$_, ", Dumper \@d);
 
 	$log = Log::Log4perl->get_logger('A.bar.50');
 	$log->debug("this should be suppressed $_", Dumper \@d)

@@ -63,11 +63,6 @@ if ($false) {
     Logger->debug("suppressed", "dueto level");
 }
 
-printf "used %d bytes\n", Logger->sizeUsed;
-printf "used %d bytes\n", Log::Log4perl::AutoCategorize->sizeUsed;
-
-Logger->debug("used ", Logger->sizeUsed);
-
 # these should not be munged
 Foo->bar();
 Foo->bar(1);

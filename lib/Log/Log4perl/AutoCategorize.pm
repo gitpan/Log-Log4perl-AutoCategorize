@@ -1,7 +1,7 @@
 
 package Log::Log4perl::AutoCategorize;
 use strict;
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 
 use Carp;
 use IO::File;
@@ -13,23 +13,22 @@ use Log::Log4perl::Appender;
 
 #use YAML;
 use Data::Dumper;
-$Data::Dumper::Indent=1;
-$Data::Dumper::Sortkeys=1;
-$Data::Dumper::Terse=1;
-
-use Devel::Size qw(total_size);
-$Devel::Size::warn = 0;
+$Data::Dumper::Indent = 1;
+$Data::Dumper::Sortkeys = 1;
+$Data::Dumper::Terse = 1;
 
 ###################
 my $MyPkg = __PACKAGE__;
-my $Alias = $MyPkg; # was 'error inducing default', but that failed basic tests
-my $opt;
+my $Alias = $MyPkg; # this is changed if you use aliasing feature
 
 use vars qw($AUTOLOAD);
-my %seenCat;	# collect categories seen
-my %unseenCat;	# filled at compile by optimizer, cleared at END
-my %cat2data;	# category => [ logger-handle, level, munged-name, enablement ]
-my %fn2cat;	# munged-name => category.  Needed for init-and-watch, not built til then
+our( # my complicates debug
+     %SeenCat,	# collect categories seen
+     %UnSeenCat,# filled at compile by optimizer, cleared at END
+     %cat2data,	# category => [ logger-handle, level, munged-name, enablement ]
+     %fn2cat,	# munged-name => category.  used for init-and-watch handling
+     @usrPkgs,	# collect list of user packages.
+);
 
 my $dumper;	# bound to Data::Dumper() or YAML::Dump by first call of AUTOLOAD
 my $defConf;	# default logger config.
@@ -37,6 +36,7 @@ my $defConf;	# default logger config.
 # silence redefine errs (no warnings wont do it, cuz theyre const);
 #BEGIN { local $SIG{__WARN__} = sub { return if /redefined/; carp(@_) }};
 
+my $opt; # hashref of debug option flags, initialized in begin
 BEGIN {
     # cuz Logger is used at import time (ie early) by many other
     # modules, it must load its own config at compile-time.
@@ -46,7 +46,6 @@ BEGIN {
   Log::Log4perl::Logger::create_custom_level("NOTIFY", "WARN");
   Log::Log4perl::Logger::create_custom_level("NOTICE", "WARN");
 
-    # initialize options to control debug output
     $opt = {
 	# flags checked in optimization phase
 	v => 0,		# generic verbosity
@@ -60,11 +59,11 @@ BEGIN {
 	s => 0,		# print opstack while scanning for ending method_named op
 	x => 0,		# extreme debug
 	r => 0,		# function renaming (munging)
-	z => 0,		# $op->dump when done optimizing
+	#z => 0,		# $op->dump when done optimizing
 	w => 0,		# log wrong ops in chain that matched
 	D => 0,		# break in optimizer if debugging
 
-	# flags checked in AUTOLOAD
+	# flags checked in AUTOLOAD, at runtime
 	i => 0,		# AUTOLOAD invoked
 	A => 0,		# AUTOLOAD args
 	a => 0,		# AUTOLOAD use of caller() 
@@ -73,12 +72,16 @@ BEGIN {
 	n => 0,		# no optimize (dont stash the method)
 	y => 0,		# use YAML::Dump (default is Data::Dumper, TBD)
 
-	l => 1,		# add level to category, ie: pkg.sub.level.line
 	e => 0,		# print END results to stdout
 	z => 0,		# print size of stuff at END
-	C => 1,		# add 'log4perl.category.' prefix to END results
+	Z => 0,		# print more size stuff at END
+
+	# these 2 are 'inverted', so that default is 'on'
+	l => 0,		# dont add level to category, ie: pkg.sub.level.line
+	C => 0,		# dont add 'log4perl.category.' prefix to END results
     };
 
+    # default Log4per config writes to stdout, and creates a coverage log
     $defConf = q{
 	 log4perl.rootLogger = DEBUG, A1
 	 log4perl.appender.A1 = Log::Dispatch::Screen
@@ -86,13 +89,20 @@ BEGIN {
 	 log4perl.appender.A1.layout.ConversionPattern = %d %c: %m%n
 	 # create COVERAGE log
 	 log4perl.appender.COVERAGE = Log::Dispatch::File
-	 log4perl.appender.COVERAGE.filename = ./test-coverage
+	 log4perl.appender.COVERAGE.filename = sub { \
+		my $n = $0;		\
+		$n =~ s|.*/||;		\
+		$n =~ s/(\.(t|pl))?$//;	\
+		return "./out.$n.cover";\
+	 }
          log4perl.appender.COVERAGE.mode = write
 	 log4perl.appender.COVERAGE.layout = org.apache.log4j.PatternLayout
-	 log4perl.appender.COVERAGE.layout.ConversionPattern = (%d{HH:mm:ss.SSS}) %c: %m%n
-	 # now that Coverage file
-	 log4perl.Log.Log4perl.AutoCategorize.END = INFO, COVERAGE
-	 };
+	 log4perl.appender.COVERAGE.layout.ConversionPattern = \
+	     (%d{HH:mm:ss.SSS}) %c: %m%n
+	 # now that Coverage file has been set up, 
+	 # send the END-block output there
+	 log4perl.logger.Log.Log4perl.AutoCategorize.END = INFO, COVERAGE
+    };
 }
 
 ########
@@ -101,26 +111,34 @@ sub import {
     my $pkg = shift;
     my (%args) = @_;
 
-    print "OK importing\n" if $opt->{v};
+    my ($cpkg) = (caller(0))[0];
+    push @usrPkgs, $cpkg;
 
-    # Log::Log4perl::AutoCategorize->
+    local $" = ",";
     set_debug($args{debug}) if $args{debug};
+    print "importing: $pkg into $cpkg, users: @usrPkgs\n";# if $opt->{v};
 
     if ($args{alias}) {
-	local $, = ", ";
-	my ($cpkg) = (caller(0))[0];
 	if ($opt->{v}) {
 	    print "aliasing $pkg as $args{alias}\n";
-	    print "importer: ", (caller(0))[0..2];
+	    my @caller = (caller(0))[0..2];
+	    print "importer is: @caller\n"; 
 	}
 	no strict 'refs';
-	*{$cpkg.'::'.$args{alias}} = *{$pkg};
-	*{$cpkg.'::'.$args{alias}.'::AUTOLOAD'} = *{$pkg.'::AUTOLOAD'};
+	*{$args{alias}} = *{$pkg};
+	*{$args{alias}.'::AUTOLOAD'} = *{$pkg.'::AUTOLOAD'};
+	# *{$cpkg.'::'.$args{alias}} = *{$pkg};
+	# *{$cpkg.'::'.$args{alias}.'::AUTOLOAD'} = *{$pkg.'::AUTOLOAD'};
+
 	$Alias = delete $args{alias};
     }
 
+    # Logger initialization: init*-directives may override default,
+    # but not vice-versa.  Interface is subject to change, esp wrt
+    # additional configuration items (currently just replaces previous)
+
     if ($args{initfile}) {
-	print "initialize with file\n" if $opt->{v};
+	print "initialize with file: $args{initfile}\n" if $opt->{v};
         Log::Log4perl->init_and_watch($args{initfile}, 10);
 	delete $args{initfile};
     }
@@ -131,10 +149,11 @@ sub import {
 	delete $args{initstr};
     }
     else {
+	return if $opt->{initd};
 	print "initializing Logger with default\n" if $opt->{v};
         Log::Log4perl->init(\$defConf);
     }
-    #$pkg->export_to_level(1, %args); 
+    $opt->{initd} = 1;
 }
 
 sub set_debug {
@@ -149,11 +168,18 @@ sub set_debug {
 	}
     }
     die "illegal debug option(s): $bad - allowed: $allowed\n" if $bad;
+
+    if ($opt->{z}) {
+	eval {
+	    require Devel::Size;
+	    Devel::Size->import qw(size total_size);
+	};
+	die "$@: -z option requires Devel::Size\n" if $@;
+    }
 }
 
 sub get_loglevel {
     # returns the level-string, should really query base for complete set
-    $DB::single =1;
     return $1 if $_[0] =~ m/^(?:log_)?(debug|info|warn|error|fatal|notice)/;
     return 0;
 }
@@ -199,7 +225,7 @@ sub AUTOLOAD {
 
     # construct category, avoid AUTOLOAD sub-name
     my $cat = $sub1 || 'main.main';
-    $cat .= ".$level" if $opt->{l};
+    $cat .= ".$level" unless $opt->{l};
     $cat .= ".$ln0";
     $cat =~ s/::/./g;
 
@@ -209,7 +235,7 @@ sub AUTOLOAD {
 	$cat .= $catinc;
     } 
     print "cat: $cat\n" if $opt->{c};
-    delete $unseenCat{$meth};
+    delete $UnSeenCat{$meth};
 
     my $log = Log::Log4perl->get_logger($cat);
     my $predicate = "is_$level";
@@ -234,7 +260,7 @@ sub AUTOLOAD {
     my $code;
     if (not $runnable) {
 	print "building disabled sub: $cpkg.$meth\n" if $opt->{b};
-	$code = sub { $seenCat{"$cat"}-- };
+	$code = sub { $SeenCat{"$cat"}-- };
     }
     else {
 	print "building enabled sub: $cpkg.$meth\n" if $opt->{b};
@@ -244,10 +270,11 @@ sub AUTOLOAD {
     # stash it
     unless ($opt->{n}) {
 	no strict 'refs';
-	*{__PACKAGE__.'::'.$meth} = $code; 
-	*{$Alias.'::'.$meth} = $code unless $opt->{n};
+	#*{__PACKAGE__.'::'.$meth} = $code; 
+	#*{$Alias.'::'.$meth} = $code;
+	*{$cpkg.'::'.$meth} = $code;
     }
-    printf "code size for $meth: %d\n", total_size($code) if $opt->{z};
+    #printf "code size for $meth: %d\n", total_size($code) if $opt->{z};
     goto &$code;
 }
 
@@ -256,7 +283,7 @@ sub logitDumper {
     my ($cat, $cls, @args) = @_;
     my @scalars;
 
-    $seenCat{"$cat"}++;
+    $SeenCat{"$cat"}++;
     my ($logger, $level) = @{$cat2data{$cat}};
 
     eval {
@@ -275,51 +302,48 @@ sub logitYAML {}
 
 #######
 
-sub dump {
-
-}
-
-sub DESTROY {
-    print "# observed logging categories:\n", Dumper(\%seenCat);
-}
-
 sub myDump {
-    print "# observed logging categories:\n", Dumper(\%seenCat);
+    print "# observed logging categories:\n", Dumper(\%SeenCat);
 }
-
-sub sizeUsed {
-    # returns the size of the entire stash
-    total_size(\%Log::Log4perl::AutoCategorize::);
-}
-
 
 END {
     my %cat2munged;
     $cat2munged{$_} = $cat2data{$_}[2] foreach keys %cat2data;
 
-    if ($opt->{C}) {
-	$seenCat{"log4perl.category.$_"} = delete $seenCat{$_} foreach keys %seenCat;
+    unless ($opt->{C}) {
+	# add prefix so its easy to edit coverage report into a config-file
+	$SeenCat{"log4perl.category.$_"} = delete $SeenCat{$_} foreach keys %SeenCat;
     }
 
     # I eat my own dog-food.  Note: this doesnt get munged, cuz the
     # optimizer munge criteria are 'tight'.  This is fine, cuz
     # mycaller() reports it well.
 
-    $Alias->info("Seen Log Events:", \%seenCat);
-    $Alias->info("un-Seen Log Events:", \%unseenCat);
+    $Alias->info("Seen Log Events:", \%SeenCat);
+    $Alias->info("UnSeen Log Events:", \%UnSeenCat);
     $Alias->info("cat2data:", \%cat2munged);
 
     if ($opt->{e}) {
-	print "Seen Log Events:"	=> Dumper \%seenCat;
-	print "un-Seen methods:"	=> Dumper \%unseenCat;
+	print "Seen Log Events:"	=> Dumper \%SeenCat;
+	print "un-Seen methods:"	=> Dumper \%UnSeenCat;
 	print "cat2info:"		=> Dumper \%cat2munged;
     }
     if ($opt->{y}) {
-	print "Seen Log Events:"	=> Dump(%seenCat);
-	print "un-Seen methods:"	=> Dump(%unseenCat);
+	print "Seen Log Events:"	=> Dump(%SeenCat);
+	print "un-Seen methods:"	=> Dump(%UnSeenCat);
 	print "cat2data:"		=> Dump(%cat2munged);
     }
     if ($opt->{z}) {
+	eval {
+	    require Devel::Size;
+	    Devel::Size->import qw(size total_size);
+	    {
+		# attempt to control msg: 'CV not complete'
+		package Devel::Size;
+		use warnings::register;
+	    }
+	};
+	die "-z option requires Devel::Size\n" if $@;
 
 	# print size info.  Devel::Size does an incomplete job on CVs,
 	# so theres insufficient value to these numbers to base
@@ -327,18 +351,20 @@ END {
 
 	my (%fnsizes, %hashsizes, %stashsizes, $total);
 
-	foreach my $fn (values %cat2data) {
-	    $total += $fnsizes{$fn->[2]}
-		= total_size(\&{"Log::Log4perl::AutoCategorize::".$fn->[2]});
+	foreach my $fn (values %cat2munged) {
+	    $total += $fnsizes{$fn}
+		= total_size(\&{"Log::Log4perl::AutoCategorize::".$fn});
 	}
-	printf "total size of stashed subs: %d\n", sizeUsed();
+	printf "total size of stashed subs: %d\n", $total;
+	print "function size breakdown: ", Dumper \%fnsizes;
 
 	no strict 'refs';
 	$total = 0;
-	foreach my $hashname (qw(seenCat unseenCat cat2data)) {
+	foreach my $hashname (qw(SeenCat UnSeenCat cat2data)) {
 	    $total += $hashsizes{$hashname} = total_size(\%{$hashname});
 	}
 	printf "total size of my hashs: %d\n", $total;
+	print "my hash size breakdown: ", Dumper \%hashsizes;
 
 	if ($opt->{Z}) {
 	    $total = 0;
@@ -346,19 +372,35 @@ END {
 		$total += $stashsizes{$stashitem} = total_size($stashitem);
 	    }
 	    printf "total size of stash items: %d\n", $total;
+	    printf "total size, all at once: %d\n"
+		, total_size(\%Log::Log4perl::AutoCategorize::);
+
 	}
-	print "size breakdown: ", Dumper \%fnsizes, \%hashsizes, \%stashsizes;
+	print "stash size breakdown: ", Dumper \%stashsizes;
     }
 }
 
 ###################
+# optimizer stuff
+# __END__ # uncomment __END__ to use in 5.6.x, and accept slowdown
 
-#this doesnt work to silence the warnings
+
+# these dont work to silence the warnings
 { package optimizer;   no warnings 'redefine' }
 { package B::Generate; no warnings 'redefine' }
+{ package DynaLoader; no warnings 'redefine' }
 no warnings 'redefine';
 
+BEGIN {
+    local $SIG{__WARN__} = sub { 
+	print "got: $_, @_";
+	return if /B::\w+ redefined/;
+    };
+}
+
 my $munged = '00000';
+#INIT { $munged = '00000' };
+
 
 # sub method_munger
 use optimizer 'extend-c' => sub {
@@ -381,6 +423,7 @@ use optimizer 'extend-c' => sub {
 
     my $class = '';
     eval { $class = $opp->sv->PV };
+    # if above failed, $class wont be set, so no $@ check is needed
     return unless $class eq $Alias or $class =~/^$MyPkg/;
 
     $DB::single = 1 if $opt->{D};
@@ -431,17 +474,18 @@ use optimizer 'extend-c' => sub {
 	return;
     }
     # now do the munge
-    print "func: $fnname\n" if $opt->{r};
+    #print "func: $fnname\n" if $opt->{r};
     $munged++;
     $meth->sv->PV("${fnname}_$munged");
-    print "munged func name: ${fnname}_$munged\n" if $opt->{r};
 
-    {
-	# record munged fnname, and where its called (to aid test-coverage review)
-	no warnings 'uninitialized';
-	$unseenCat{"${fnname}_$munged"} = join(',', (caller(0))[0..2]);
-    }
-    $meth->dump if $opt->{z};
+    # record munged fnname, and where its called (to aid test-coverage review)
+    my $cllr = join(',', (caller(0))[0..2]);
+    $UnSeenCat{"${fnname}_$munged"} = $cllr;
+
+    print "munged func name: ${fnname}_$munged, caller: $cllr\n"
+	if $opt->{r};
+    
+    #$meth->dump if $opt->{z};
 };
 
 sub opNames {
@@ -471,12 +515,15 @@ Log::Log4perl::AutoCategorize - extended Log::Log4perl logging
 =head1 ABSTRACT
 
 Log::Log4perl::AutoCategorize extends Log::Log4perl's easy mode, 
-providing 2 main features on top;
+adding 2 main features;
 
   1. extended, automatic, transparent categorization capabilities
   2. runtime information useful for:
-    a. test-coverage information
+    a. test-coverage assessment
     b. managing your logging config.
+  3. Minor convenience enhancements
+    a. config-load in use statement
+    b. Data::Dumper of ref args
 
 There are several more mature alternatives which you should check out
 for comparison;
@@ -492,10 +539,12 @@ for comparison;
   use Log::Log4perl::AutoCategorize
     (
      alias => 'Logger', # shorthand class-name alias
-     # easy init methods (std ones available too)
-     # maybe later (when base has #includes), 2nd will override 1st
+     # you can initialize in use statement
+     #  1st way gives separation of code from config
+     #  2nd way is good for demonstration and early development
      initfile => $filename,
      initstr => q{
+         # see Log4perl docs to understand these directives
 	 log4perl.rootLogger=DEBUG, A1
 	 # log4perl.appender.A1=Log::Dispatch::Screen
 	 log4perl.appender.A1 = Log::Dispatch::File
@@ -513,7 +562,6 @@ for comparison;
 
 	 # now, add the value: send the stuff written at END to it
 	 log4perl.logger.Log.Log4perl.Autocategorize.END = INFO, COVERAGE
-
 	 },
      );
 
@@ -534,32 +582,43 @@ for comparison;
 
   sub bar {
     my @d;
-    foreach (1..20) {
+    foreach (reverse 1..10) {
 	push @d, $_;
-	Logger->warn($_,\@d);
+	Logger->warn("t-minus:", $_,\@d);
     }
   }
 
 
 =head1 DESCRIPTION
 
-Before diving in, a few notes to the documentation:
+Before diving in, a few notes:
 
-I use 'Logger' as the 'official' shorthand for the tedious and verbose
-Log::Log4perl::AutoCategorize.  Note that theres support for this, its
-used in the example above; 'alias => Logger'.  Also, I often refer to
-Log::Log4perl as 'base'.
+This is not intended to document Log4perl (abbrev for Log::Log4perl);
+that documentation is a good tutorial, and is quite thorough and
+complete.
 
-I try to use 'call' for the act of calling a method at runtime, and
-'invocation' to refer to the source-code (ie: package,sub,line-number)
-that did it (ie was called).  I hope that the distinction will help to
-bend the brick into a more hat-like shape.
+In this document, I use B<Logger> as the I<official> shorthand for
+Log::Log4perl::AutoCategorize, as it gets tedious and verbose to
+repeat the full name.  There is module support for you to do this too;
+note that its used in the example above, ie: 'alias => Logger'.  You
+can alias it as you prefer: myLogger, ourLogger, or you can subclass
+it.
+
+I try to use I<call> for the act of calling a method at runtime, and
+I<invocation> to refer to the source-code (ie: package,sub,line-number)
+that is called.  I hope that the distinction will help to bend the
+brick into a more hat-like shape.
+
+This module requires perl 5.8, as the optimizer is unsupported in 5.6.
+You can use this module IFF you uncomment the __END__ before the
+optimization stuff is done (at bottom of file), but runtime costs are
+considerable (40% overhead), so I wont add this as an option.
 
 =head1 AutoCategorization
 
-The primary feature of this module is to automatically and
-transparently create logging categories for each invocation point in
-your application code.
+The primary feature of this module is to extend Log4perl's flexibility
+by automatically and transparently creating logging categories for each
+invocation in your application code.
 
 use Log::Log4perl ':easy' offers a comparable, but less capable
 feature; it automatically infers that $logCat = "$caller_package", and
@@ -578,13 +637,13 @@ detail upon which to filter.
 
     $logcat = "$package.$subname.$loglevel.$linenum";
 
-The base bubble-up properties are still in effect; if your log-config
+Log4perl's bubble-up behavior is still in effect; if your log-config
 never specifies anything beyond $package, the $logCat of each call
 bubbles up thru the log-config, until it matches with your
 package-level config item.
 
 In other words: since the $logcat contains more information than that
-provided by :easy, your logging configuation can exersize more control
+provided by :easy, your logging configuration can exersize more control
 over what gets logged.
 
 Note that you could have always used whatever categories you wanted,
@@ -594,16 +653,19 @@ help that made it easy to do so.
 
 =head1 Test Coverage Results of your Application
 
-When your code calls this module, the calls are categorized and
+When your code uses this module, the logging calls are categorized and
 counted; this is reported when the program terminates.  The info is
-returned in 2 chunks.
+returned in 3 chunks.
 
 =head2 Seen: How many times each invocation was called
 
+The %Seen hash stores and counts all invocations of all functions,
+keyed by the category.  The keys are prefixed with '#log4perl.category.',
+which simplifies cut-paste of this output into your log-config.
 This is variously called a usage report, a test-coverage report, a
 seen-report, etc.
 
-(15:24:24.772) Logger.END.info.106: $Seen Log Events: = [
+ (15:24:24.772) Logger.END.info.106: $Seen Log Events: = [
   {
     '#log4perl.category.A.bar.debug.55' => '-400',
     '#log4perl.category.A.bar.warn.54' => 400,
@@ -612,6 +674,7 @@ seen-report, etc.
     '#log4perl.category.main.info.32' => 10,
     '#log4perl.category.main.warn.31' => 10
   }
+ ];
 
 Note that A.bar.debug.55 above has a negative count. This indicates
 that the logging activity was suppressed by the configuration, but the
@@ -619,61 +682,81 @@ code was still reached 400 times.
 
 =head2 UnSeen: What invocations were never called
 
-(15:24:24.772) Logger.END.info.106: $un-Seen Log Events: = [
+This report identifies the Logging invocations which were never called
+during this run of your program.  This can be used systematically to assess 
+how thoroughly you are testing your application.
+
+ (15:24:24.772) Logger.END.info.106: $un-Seen Log Events: = [
   {
     'debug_00011' => 'main,probe.pl,52',
     'info_00010' => 'main,probe.pl,51',
   }
-];
+ ];
 
-This report identifies the Logging invocations, examined and munged at
-compile time, minus those invocations that were called.  As such, it
-represents those invocations that were never reached.
+=head2 Category to Munged-Name
+
+This hash identifies the map between the categories and the unique
+function-name.  It is provided primarily for completeness, it may
+prove useful for debugging and/or other things.
+
+ (19:44:06.210) Log.Log4perl.AutoCategorize.END.info.308: cat2data:, {
+  'A.truck.debug.63' => 'debug_00005',
+  'A.truck.debug.65' => 'debug_00006',
+  'A.truck.debug.66' => 'debug_1_00007',
+  'A.truck.warn.62' => 'warn_00004',
+  ...
+  }
 
 =head2 Assessing Test Coverage
 
-One way to use this facility is by running your test suite and
-collecting the individual coverage reports.  Since theyre sorted,
-theyre easily compared, so you can tell what parts of the system are
-tested by each part of the test suite.
+One way to use the test coverage facility is by running your test
+suite and collecting the individual coverage reports.  Since the
+config-items are sorted in the report, its easy to compare 2 of them;
+you can tell what parts of the system are tested by each part of the
+test suite.
 
-The base log-config facilities support timestamped log-files (see
-L<SYNOPSIS> usage), simplifying the gathering of test-coverage
-reports.  Then you can `cat *.coverage-log|sort -u`, and quickly
-assess the total coverage provided by the entire test suite.
+Log4perl can write log-files with configurable names (ex: a
+timestamped name, see the L<SYNOPSIS> example).  You can use this
+facility to write separate files for each sub-test, and then merge
+them (ex: `cat *.coverage-log|sort -u`), and quickly assess the total
+coverage provided by the entire test suite.
 
 =head2 Keeping your Logging Config current
 
-Base documentation speaks of the hazards/limitations of categories;
-this is more critical here, where categories are so leveraged.  See
-L<Log::Log4perl/"Pitfalls with Categories"> for more info.
+Log4perl documentation speaks of the hazards/limitations of
+categories; this is more critical here, because categories are highly
+leveraged.  See L<Log::Log4perl/"Pitfalls with Categories"> for more
+info.
 
-This package is undisputably more vulnerable; it exposes line numbers,
-which change regularly during development.  If you use numbers, expect
-that adding comments to your code will change the category reported,
-rendering those log-config items ineffective for controlling output.
-Moreover, recognize that as the numbers become more stable, theyre
-also less valuable; by then, youve reassesed and refined your choices
-wrt log-levels. (you have, yes?)
+This package is undisputably more vulnerable to such problems; it
+exposes line numbers, which change regularly during development.  If
+you use numbers, be aware that adding comments to your code will
+change the category reported, rendering those log-config items
+ineffective for controlling output. 
+
+Moreover, you should recognize that as the numbers become more stable,
+theyre also less valuable; by then, youve reassesed and refined your
+choices wrt log-levels. (you have, yes?)
 
 However, you can also be more disiplined (TMTOWTDI), using
 config-lines with a mix of specificity: package, package.method, and
-package.method.level.  Here the coverage report helps, since it lists
-all executed logger-invocations, it serves as a pretty good
-roadmap, letting you see the forest through the trees.
+package.method.logginglevel.  Here the coverage report helps, since it
+lists all executed logger-invocations, it serves as a pretty good
+roadmap to your application, letting you see the entire forest through
+the trees.
 
-Moreover, the coverage report is formatted to be easily edited into a
+Also, the coverage report is formatted to be easily edited into a
 informative and useful logging configuration, ie:
 
     1. comments/documents the 'existence' of a log-config entry
     2. doesnt create the hierarchy in the logger-config, efficient
     3. identifies all the code instrumentation available
-    4. serves as cut-paste fodder for generalized log-configs
+    4. serves as cut-paste fodder for your log-configs
 
 Bottom line: I recommend that you start your log-config file by
 copying and editing the coverage report.  Just remove the quotes put
-in by Data::Dumper, change '=>' to '=', remove '#' to activate lines
-(see example above), and change the count to DEBUG, WARN, etc.
+in by Data::Dumper, change '=>' to '=', remove '#' to activate lines,
+and change the count to DEBUG, WARN, etc.
 
 =head2 What %Seen cant tell you
 
@@ -708,9 +791,9 @@ particular logging levels with that method, or line by line.
 
 (1) enables debug logging accross the Frob class, but then (2)
 overrides that class-wide setting within the method nicate(),
-suppressing debug logging (by setting the threshold to INFO).
-(3) further overrides that setting by enabling the debug statement on
-line 118.
+suppressing debug logging (by setting the threshold to INFO).  (3)
+further overrides that setting by enabling the debug statement on line
+118.
 
 =head2 Tweaking your log config
 
@@ -728,7 +811,7 @@ Note also that (4), even if it was uncommented, would have no effect
 on the logging, because its just saying that all debug() calls done by
 Frob::Vernier::twiddle() are issued at their default level.  Keeping
 such lines commented is more efficient; it saves Log::Log4perl both
-cpu and memory by not loading config-items that arent meaninful.
+cpu and memory by not loading config-items that arent meaningful.
 
 
 =head1 Other Features
@@ -785,8 +868,15 @@ re-initialized, and relys on base behavior to work correctly.
 
 I hope at some point to provide init_modify(), which will overlay new
 configuration on existing, rather than a full reinitialization.  This
-will be implemented using the base\'s notional configuration include
-mechanism.
+will be implemented using Log4perls (currently nonexistent)
+configuration include mechanism.
+
+=head2 Automatic Dump of structured data
+
+If you pass in a data-ref, its rendered using Data::Dumper, making it
+easy to examine the details of the runtime context.  Since the Dump is
+embedded inside the logging-method, its only called when needed,
+avoiding work to produce output that will just be thrown away.
 
 =head2 SubClassing
 
@@ -795,72 +885,84 @@ you make you package suitable for deriving new ones.  test
 04_subclass.t verifies this, though it wasnt the 1st thing I got
 working.
 
+
 =head1 Module Architecture
 
-This package uses a 2 phase strategy; method munge, method vivify.
-The optimization phase munges the correct static-method calls, giving
-them unique ids, and AUTOLOAD implements them.
+The previous section hopefully provides sufficient motivation for why
+you should use this module, this section describes how the module
+works.
+
+2 phase strategy to achieve both greater filtering capability, and
+similar or better efficiency.
 
 =head2 Original AUTOLOAD functionality
 
-In v0.001, AUTOLOAD did the entire job itself; for each call to the
-logger it did the following:
+In v0.001, AUTOLOAD did the entire job itself, primarily cuz it seemed
+better to write the code once, rather than 5 times (for debug, info,
+warn, error, fatal).  Every time a call like Logger->warn() was
+reached, AUTOLOAD would get control, and do the following:
 
+    0. determine log-level which was called ($AUTOLOAD)
     1. used caller() to construct a category string, $logcat, dynamically.
     2. fetched the $logger singleton {$logger = get_logger($logcat)}
-    3. tested if $logcat was a loggable event {$logger->is_$logcat()}
+    3. tested if $logcat was a loggable event {$logger->is_$loglevel()}
     4. logged the message, or not, as appropriate.
 
 Doing this repeatedly using caller() for every call is computationally
-expensive for a logging subsystem; the code should be efficient and
-usable application wide.
+expensive for a logging subsystem. If the module is to be usable
+application wide, it must be efficient.
 
-It could not commit the collected knowledge into a subroutine though;
-the method is supposed to be callable from anywhere, and should act
-the same for each client.
+=head2 Gaining efficiency
 
-because as there
-was no way to associate an invocation point uniquely with the info
-gleaned via caller().
+The canonical way to get speed from AUTOLOAD is to not call it; or
+more helpfully, to create the desired subroutine so that it gets
+called for all future calls to that method.  But in this case, the
+decision reached in step 4 is different for every invocation, so it
+cannot be reduced to a single subroutine.
 
-Attempts to make methods here was no good; the method created was
-similar to Logger::debug(), it was created knowing the log-config
-based filtering of just one invocation, and then served all other
-debug calls with the wrong inferred category.
+The only way to get custom behavior for each invocation is to make
+them each invoke a unique method name; ie to munge the method names
+where they are invoked.  Once this is done, AUTOLOAD can then vivify
+subroutines to implement them, and then it wont be called again (for
+that unique method), avoiding the 0-4 overhead completely.
 
-=head2 Our use of optimizer
+=head2 Using optimizer.pm
 
-I use Simon Cozen''s optimizer.pm to find and replace (ie munge) all
-occurrences
+I use Simon Cozen''s optimizer.pm to convert the source code:
 
-    of    Logger->info()
-    with  Logger->info_$UniqueInvocationID()
+    FROM: {
+	Logger->debug ("msg A");
+	Logger->debug ("msg B");
+    }
+    TO:	{
+	Logger->debug_001 ("msg A");
+	Logger->debug_002 ("msg B");
+	# etc...
+    }
 
-The function-munging produces a unique function name for every
-invocation of the Logger.  lexical occurrence (glossary term: )
-
-This allows AUTOLOAD (which handles all these calls) to distinguish
-each invocation, make a custom handler routine for it.  Once the
-custom handler is added into the symbol table, it is called later
-without any overhead.
+The function-munging produces a unique function name for each point in
+your code where you invoke a logging method.  This allows AUTOLOAD
+(which handles all these calls) to distinguish each invocation, make a
+custom handler routine for it.  Once the custom handler is added into
+the symbol table, it is called later without any overhead.
 
 =head2 How optimizer munges
 
 Your code, 'use optimizer => sub yourfunc;' operates at compile time,
-letting you search the opcode chain for specific op-chains.  Once
-youve got the right opchain, you can do the opcode surgery.
+letting you search the opcodes for specific op-chains.  Once youve got
+the right opchain, you can do the opcode surgery.
 
 For example, we must recognize this opcode chain;
 
-`perl -MO=Concise,-exec basic.pl`;
+`perl -MO=Concise,-exec -e 'Logger->info_00010(2,"args")`;
   t76     <0> pushmark s
   t77     <$> const(PV "Logger") sM/BARE
-  t78     <$> const(PV "2") sM
+  t78     <$> const(IV 2) sM
   t79     <$> const(PV "args") sM
   t7a     <$> method_named(PVIV "info_00010") 
   t7b     <1> entersub[t23] vKS/TARG
 
-Our criteria is (pushmark, const with PV="Logger", ...., method_named
+Our criteria is (pushmark, const with PV="Logger", ..., method_named
 with PVIV=~$namePatt).  We also recognize the opcodes that build
 arguments on the stack, so we can find the balanced method_named
 opcode.  Finally, we insure that the method name being invoked is one
@@ -881,13 +983,14 @@ namespaces (except for the explicit takeover of the $Alias package)
 
 The 2nd form is not safely detectable at compile time, since $logger
 type cannot be absolutely known, and we try not to do risky surgery.
-For example, we\'d never want to inadvertently do this; $logger->warn
-if ref $logger eq 'FlareGun'. 
+For example
+
+    # never inadvertently do this -
+    $logger->warn if ref $logger eq 'FlareGun';
 
 The 3rd form is doable, but clutters the code which does $Alias
-recognition, for little syntactic gain.  We wont even warn you if you
-use this construct.
-
+recognition, for little syntactic gain.  Currently, you wont even get
+a warning you if you use this construct.
 
 =head2 lightweight customized subroutines
 
@@ -904,7 +1007,7 @@ To save more space, a common do_nothing() function could be used
 instead of the current invocation counting do-nothing, at the cost of
 losing test-coverage info.
 
-=head1 AUTOLOAD revisited
+=head2 AUTOLOAD revisited
 
 Once method munging was in place, $AUTOLOAD would contain, for
 example; not "debug", but "debug_00011".  Now that each invocation is
@@ -926,8 +1029,8 @@ AUTOLOAD is never called again for this invocation.
 =head1 Benchmarking
 
 Ive done one Benchmark.pm based test (tshort.pl) which doesnt seem
-quite right.  The more straightforward test shows more convincing
-results.
+quite right.  The simpler approach of using 2 similar test-scripts
+shows more convincing results.
 
     $jimc@harpo logger]$ time t1.pl -n > /dev/null
 
@@ -954,7 +1057,7 @@ internal short-circuits can be taken.
 Please run perftests/timeit.sh and send me email, particularly if you
 get wildly different results.
 
-=head1 CAVEAT
+=head1 CAVEAT (restated)
 
 This package expects you to use Logger->warn() style of coding,
 $logger->warn() will not work, unless .  This is because the type of
@@ -968,12 +1071,14 @@ customization with objects and their attributes.
 
 The category extension can be abused; you can independently suppress
 warn() while elevating debug(), leading to suprises in what output
-goes where.  But this can be used sanely, so I dont consider this a
-problem.
+goes where.  But this can be used sanely, so I dont consider worth
+disabling.  I could be convinced to optionally report it; as ever, a
+patch is a compelling argument.
 
 The %Seen report can never contain the categories of unexecuted
-functions, since te catalog entry is done by AUTOLOAD, which is never
-run.  Ive thought of a few 'solutions', but theyre all insane..
+functions, since the catalog entry is created by AUTOLOAD, which is
+never run if the function isnt executed.  Ive thought of a few
+"solutions", but theyre all insane ..
 
     1. remember functions during munging, call them once in CHECK{}.
        Wont work; would get useless caller() info.
@@ -984,20 +1089,25 @@ run.  Ive thought of a few 'solutions', but theyre all insane..
        line-numbered log-specs, been moved by a mere comment. Note
        though that reset control could be added to API.
 
+Debugging your code can be problematic; it seems to undo emacs
+keybindings; a ctrl-P (previous command) will send it into a
+cpu-sucking vortex.
+
 =head1 TODO
 
-=head2 fix raft of subroutine redefined warnings
+=head2 fix raft of 'subroutine redefined' warnings
 
-Warnings are issued (under -w) during compile-phase, I cant control
-them.  I suspect that solution lies in warnings::register, or perhaps
-in more primitive solutions like { package B::Generate; no warnings
-'redefine' }.  If you can patch these away, Id be eternally grateful.
+Warnings are issued (under -w) during compile-phase, I cant currently
+suppress them.  I suspect that solution lies in warnings::register, or
+perhaps in more primitive solutions like { package B::Generate; no
+warnings 'redefine' }.  If you can patch these away, Id be eternally
+grateful.
 
-=head2 devise good way to control logging details
+=head2 devise good way to limit the deep logging of ref-data
 
 AutoCategorize uses Data::Dumper to render the structure of complex
-data arguments.  Ive found it would be nice to selectively suppress
-the Dump, and print just the strings.
+data arguments.  It would be nice to selectively suppress or modify
+the Dumper output, and/or print just the strings.
 
 But to do this via the log-config, the config-item syntax must be
 extended; either by adding new attributes, or by allowing new values.
@@ -1022,16 +1132,18 @@ Other schemes are also possible;
     log4perl.category.A.foo.debug.*.detail = 0
     # limit the depth of dumper (one way, others possible)
     log4perl.category.A.foo.debug.*.detail = -20
-    # alternative 
+    # alternative values
     log4perl.category.A.foo.debug.*.detail = YAML
     log4perl.category.A.foo.debug.*.detail = sub { YAML->dump }
 
+    # alternate (currently unused) directives
+    log4perl.autocat.A.foo.debug.*.detail = sub { YAML->dump }
 
 =head2 allow use of alternates to Data::Dumper
 
 YAML comes to mind, as does Data::Dumper::Sortkeys = sub {...}; I took
-a quick swipe at using YAML::Dump (-dy debug option), but its not
-yielding expected results.
+a quick swipe at using YAML::Dump (-dy debug option to
+perftests/tdebug.pl), but its not yielding expected results.
 
 Its also possible to get various object and context sensitive
 serializations, esp if combined with extra params above.
@@ -1040,11 +1152,8 @@ serializations, esp if combined with extra params above.
 
 This package is hardcoded to only munge invocations to one of (debug,
 info, notice, warn, error), non matching are left unaltered, because
-some calls should delegate thru to Log::Log4perl.
-
-Note for example that this module explicitly adds levels: notice,
-notify as synonyms for warn, and these are not exposed above.  (I like
-it myself, but I dont want to corrupt my users too).
+some calls should delegate thru to Log::Log4perl, and we should be
+conservative about what gets munged.
 
 But the point is this: A whole panoply of method suffixes are
 possible; (ex: /(info|debug)_.*/), a careful use of this method
@@ -1054,10 +1163,10 @@ info_iffalse).
 
 =head2 short-circuit internal checks
 
-Its likely that several checks internal to Log::Log4perl can be
-eliminated once its determined (at 1st invocation) that a log event
-should actually do something.
-
+Its likely that several checks and/or dereferences internal to
+Log::Log4perl can be eliminated once its determined (at 1st
+invocation) that a log event should actually do something.  
+This is however risky; too much deep coupling.
 
 =head2 init and watch
 
@@ -1084,28 +1193,46 @@ message issued.
 =head2 Remembering the AutoCat-alog
 
 See also L</BUGS/Seen.2>.  While it borders on the baroque, its
-possible to tie %TotalInvocations to a DBM file, whose name is
-controlled by your log-config, and can thus be disciplined to your
-VERSION; either $package::VERSION, a complete CVS Revision, or to your
-application Version.  Interestingly, this could give some insight into
-longer-term code evolution.
+possible to tie %TotalInvocations to a DBM or Storable file, whose
+name is controlled by your log-config.  Then you could use Log4perl''s
+logitem = sub{} to syncronize the filename to your VERSION; either
+$package::VERSION, a complete CVS Revision, or to your application
+Version.  Interestingly, this could give some insight into longer-term
+code evolution.
 
+
+=head2 Improve the documentation
+
+In an effort to provide adequate motivation and explanation, Ive
+gotten long-winded, repeating ideas several times.  Im now too close
+to this to judge their clarity adequately, I welcome feedback and
+suggestions wrt what is tedious or unclear.
+
+To this end, Im including 2 versions of a lightning (5 min) talk I
+gave on this module at YAPC::NA in Boca.  The longer version I tested
+on several willing victims, and the short version I actually gave
+based upon their valuable comments.  If these are helpful, please let
+me know how they could be folded into this document to improve clarity
+and/or remove redundancy.
 
 =head1 More TODO
 
     find and kill bugs..
-    write test cases..
+    write more test cases..
     optimize more
-    integrate with Log::Log4perl
-    bundle for CPAN..
+    integrate more fully with Log::Log4perl
 
     help/feedback is welcome.
 
-=head1 SEE ALSO
+=head1 CREDITS
 
-    L<Log::Log4perl>
-    L<optimizer>
-    L<B::Generate>
+Mike Schilli and Kevin Goess for L<Log::Log4perl>, and for reviewing
+my docs and code, and pointing out features I had not fully
+understood.
+
+Simon Cozens, Artur Bergman for L<optimizer>, L<B::Generate>.  The
+extra features this module provides would not be practical w/o the
+deep magic in those packages; Im just repeating incantations.
 
 =head1 AUTHOR
 
@@ -1119,7 +1246,6 @@ This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 
 
 (I always wanted to write that ;-)
-
 
 =cut
 

@@ -52,7 +52,7 @@ foreach (1..$opt_m) {
     if ($false) {
 	# never executed, but reported as such in coverage log
 	$logger = Log::Log4perl->get_logger('main.main.fatal');
-	$logger->info('un-Seen', $_);
+	$logger->info('UnSeen', $_);
     }
     if (0) {
 	# optimized out by perl itself. never seen by AutoCategorize's optimizer

@@ -2,10 +2,23 @@ Log/Log4perl/AutoCategorize version 0.0081
 ========================================
 
 
-Log::Log4perl::AutoCategorize is a wrapper module for Log::Log4perl;
-it provides a different interface for (what I perceive as) better
-usability.  There are several more mature alternatives which you
-should check out for comparison;
+Log::Log4perl::AutoCategorize is a wrapper module for Log::Log4perl,
+and adds 2 primary features;
+
+  1. extended, automatic, transparent categorization capabilities
+  2. catalogs all invocations of logger, by all users:
+     a. test-coverage assessment
+     b. supports you in managing your logging config.
+
+2ndary features are;
+
+  3. use-time configuration loading
+  4. Aliasing to a top-level class (ex: myLogger)
+  5. subclassable
+
+ 
+There are several more mature alternatives which you should check out
+for comparison;
 
   # 1. search for Stealth Loggers in POD
   use Log::Log4perl qw(:easy);
@@ -79,10 +92,10 @@ ACKNOWLEDGMENTS
 
   (hey, this is my 1st soapbox, um, module ;-)
 
-  Mike Schilli for writing an efficient standards-based logger thats
-  better than what Java has.  Simon Cozens & Arthur Bergman for
-  optimizer.pm.  Larry Wall, pumpkings, p5p, CPAN authors for building
-  perl and the great resources and community around it.
+  Mike Schilli, Kevin Goess for writing an efficient standards-based
+  logger thats better than what Java has.  Simon Cozens & Arthur
+  Bergman for optimizer.pm.  Larry Wall, pumpkings, p5p, CPAN authors
+  for building perl and the great resources and community around it.
 
 COPYRIGHT AND LICENCE
 

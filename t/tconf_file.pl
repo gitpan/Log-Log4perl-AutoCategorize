@@ -7,10 +7,6 @@ use Log::Log4perl::AutoCategorize
      # debug => $opt_d,
      alias => 'Logger',
      initfile => 'log-conf',
-     initstrNOT => q{
-	 log4perl.appender.A1.filename = ./mylog.ti
-	 log4perl.appender.COVERAGE.filename = ./test-coverage.ti
-	 }
      );
 
 getopts('d:m:f:b:c:') or die <<OPTS;
@@ -20,10 +16,10 @@ getopts('d:m:f:b:c:') or die <<OPTS;
   b <#>    : A::bar() loop count (default 20)
 OPTS
 
-$opt_m ||= 50;
-$opt_f ||= 20;
-$opt_b ||= 20;
-$opt_c ||= 20;
+$opt_m ||= 5;
+$opt_f ||= 2;
+$opt_b ||= 2;
+$opt_c ||= 2;
 
 Log::Log4perl::AutoCategorize::set_debug($opt_d) if $opt_d;
 

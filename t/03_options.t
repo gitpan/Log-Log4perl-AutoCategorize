@@ -9,9 +9,11 @@ BEGIN {
 }
 
 use Test::More (tests => 10);
+local $" = "\n\t";
 
 my ($stdfile, $errfile) = qw( out.options.std out.options.err );
 
+#################
 diag "test options to print to stdout for; i-autoload invoke, b-build, c-category, a-caller-activity";
 system "perl dflt_stdout.pl -d iabc > $stdfile 2> $errfile";
 
@@ -40,9 +42,10 @@ my @munged;
 while ($stdout =~ m/meth: (\w+(?:_000\d{2})?)/msg) {
     push @munged, $1;
 }
-diag "munged names reported: @munged\n";
+@munged = sort @munged;
+diag "munged names reported: \n\t@munged\n";
 #printf "found %d munges\n", scalar @munged;
-ok (@munged == 18, 'found 17 munged names');
+ok (@munged == 17, '17 munged names');
 
 diag " for some reason, one method called from END block is un-munged\n";
 
@@ -50,21 +53,25 @@ my @cats;
 while ($stdout =~ m/cat: (\w+(?:\.\w+)+)\n/msg) {
     push @cats, $1;
 }
-diag "categories reported: @cats\n";
-#printf "found %d munges\n", scalar @cats;
-ok (@cats == 18, '18 categories');
+@cats = sort @cats;
+diag "categories reported: \n\t@cats\n";
+#printf "found %d categories\n", scalar @cats;
+ok (@cats == 17, '17 categories');
 
 
 my @builds;
 while ($stdout =~ m/building.*?: (\w+(?:\.\w+)+)\n/msg) {
     push @builds, $1;
 }
-diag "methods built: @builds\n";
+@builds = sort @builds;
+diag "methods built: \n\t@builds\n";
 #printf "found %d built methods\n", scalar @builds;
-ok (@builds == 18, '18 methods built');
+ok (@builds == 17, '17 methods built');
 
 
 ok ($stderr, "got something on stderr");
+
+#################
 
 __END__
 ##########

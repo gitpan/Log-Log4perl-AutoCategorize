@@ -2,7 +2,8 @@
 log4perl.rootLogger=INFO, A1
 # log4perl.appender.A1=Log::Dispatch::Screen
 log4perl.appender.A1 = Log::Dispatch::File
-log4perl.appender.A1.filename = sub {(my$l=$0)=~s|[\./](pl)?||g; "./mylog.$l" }
+log4perl.appender.A1.filename = sub { $0=~ s&\.(?:t|pl)$|\.|/&&g; "./out.$0" }
+
 log4perl.appender.A1.mode = write
 log4perl.appender.A1.layout = PatternLayout
 # suppress clock so files are directly diffable
@@ -10,12 +11,14 @@ log4perl.appender.A1.layout = PatternLayout
 log4perl.appender.A1.layout.ConversionPattern=%c: %m%n
 
 # create COVERAGE log
-log4perl.Log.Log4perl.AutoCategorize.END = INFO, COVERAGE
 log4perl.appender.COVERAGE = Log::Dispatch::File
-log4perl.appender.COVERAGE.filename = sub{(my$l=$0)=~s|[\./](pl)?||g;"./test-coverage.$l"}
+log4perl.appender.COVERAGE.filename = sub{ $0=~ s&\.(?:t|pl)$|\.|/&&g; "./out.$0.cover" }
 log4perl.appender.COVERAGE.mode = write
 log4perl.appender.COVERAGE.layout = org.apache.log4j.PatternLayout
 log4perl.appender.COVERAGE.layout.ConversionPattern = (%d{HH:mm:ss.SSS}) %c: %m%n
+
+# send End block output to COVERAGE
+log4perl.logger.Log.Log4perl.AutoCategorize.END = INFO, COVERAGE
 
 # do some filtering
 
