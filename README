@@ -80,12 +80,14 @@ This module requires these other modules and libraries:
   Data::Dumper - logs structured data with this
   YAML (tbd) - optional replacment for Data::Dumper
 
-Since this module requires optimizer.pm, it also requires B::Generate
-and 5.8.  This is unlikely to change, unless youre able to convince
-the authors/maintaners of those modules to backport them.
+Since I developed this on 5.8, that is a requirement currently.  For
+5.8.1, I needed to patch both B::Generate and optimizer, please email
+me if you want to try those patches.
 
-That said, you can add an __END__ above the use optimizer line, and it
-should work on 5.6, though I havent tried this.
+I recently discovered 'use 5.5.62' in B::Generate, but it doesnt
+compile for me on 5.6.2-pre ( PL_custom_op_names is undefined there ).
+If you can successfully build B::Generate or optimizer on 5.6.x, or if
+you want to try to tweak my patches, *please* let me know.
 
 
 ACKNOWLEDGMENTS

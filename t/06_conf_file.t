@@ -5,6 +5,7 @@ BEGIN {
     chdir 't' if -d 't';
     use lib '../lib';
     $ENV{PERL5LIB} = '../lib';    # so children will see it too
+    unlink <out.06*>, <out.tconf_file*>;
 }
 
 use Test::More (tests => 9);
@@ -13,24 +14,26 @@ diag ("test with a loaded config-file");
 
 $!=0;
 # hide stderr, not helpful
-system 'perl -w tconf_file.pl 2> out.conf_file.stderr';
+system 'perl -w tconf_file.pl 2> out.tconf_file.stderr';
 
 ok (!$@, 'no $@ error');
 ok (!$!, "no \$! error: $!");
 ok (!$?, 'exited with 0');
 
 my ($logout,$logcover);
+my ($fout,$fcover) = ("out.tconf_file","out.tconf_file.cover");
 {
     local $/ = undef;
     my $fh;
-    open ($fh, "out.tconf_file");
+    open ($fh, $fout);
     $logout = <$fh>;
-    open ($fh, "out.tconf_file.cover");
+    open ($fh, $fcover);
+    
     $logcover = <$fh>;
 }
 
 ok ($logout, "got something on stdout");
-ok ($logcover, "got something on logcover");
+ok ($logcover, "got something in coverage log");
 
 ##########
 diag ("following tests look for expected logging output, with line numbers");
@@ -45,7 +48,7 @@ like ($logout, qr/\QA.truck.debug.63: trucks are noisy 2, [
 
 ##########
 
-diag ("now test contents of coverage report");
+diag ("now test contents of coverage report: t/$fcover");
 
 like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: Seen Log Events:, {
   'Log.Log4perl.AutoCategorize.END.info.\E\d+\Q' => 1,
@@ -59,13 +62,13 @@ like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: Seen Log Ev
   'log4perl.category.main.suv.warn.51' => '-10',
   'log4perl.category.main.suv.warn.52' => '-10'
 }\E)/,
-      "OK - Seen report looks good - look at t/out.cover.tconf_file");
+      "OK - Seen report");
 
 like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: UnSeen Log Events:, {
   'info_00011' => 'main,tconf_file.pl,36',
   'warn_00008' => 'B::C,tconf_file.pl,76'
 }\E)/,
-      "OK - Un-Seen report looks good - look at t/out.cover.tconf_file");
+      "OK - Un-Seen report");
 
 like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: cat2data:, {
   'A.truck.debug.63' => 'debug_00005',
@@ -78,7 +81,7 @@ like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: cat2data:, 
   'main.suv.warn.51' => 'warn_00002',
   'main.suv.warn.52' => 'warn_00003'
 }\E)/,
-      "OK - cat-2-munged data looks good - look at t/out.cover.tinitstr");
+      "OK - cat-2-munged data");
 
 __END__
 

@@ -6,6 +6,7 @@ BEGIN {
     chdir 't' if -d 't';
     use lib '../lib';
     $ENV{PERL5LIB} = '../lib';    # so children will see it too
+    unlink <out.03*>, <out.options*>, <out.dflt_stdout*>;
 }
 
 use Test::More (tests => 10);
@@ -98,7 +99,4 @@ ok (@output == 18, 'found 18 munged names');
 
 
 __END__
-
-
-like ($stderr, qr/\Q
 

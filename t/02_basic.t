@@ -5,6 +5,7 @@ BEGIN {
     chdir 't' if -d 't';
     use lib '../lib';
     $ENV{PERL5LIB} = '../lib';    # so children will see it too
+    unlink <out.basic*>, <out.02*>, <out.dflt_stdout*>;
 }
 
 use Test::More (tests => 25);
@@ -156,4 +157,3 @@ diag ("\nall done. now the Loggers (see test 1) END block reports ...\n\n");
 
 __END__
 
-  'log4perl.category.main.main.debug.69' => 1,

@@ -13,19 +13,20 @@ diag ("test a non-default initstr");
 
 $!=0;
 # hide stderr, not helpful
-system 'perl -w tinitstr.pl 2> out.initstr.stderr';
+system 'perl -w tinitstr.pl 2> out.tinitstr.stderr';
 
 ok (!$@, 'no $@ error');
 ok (!$!, "no \$! error: $!");
 ok (!$?, 'exited with 0');
 
 my ($logout,$logcover);
+my ($flogout,$flogcover) = ("out.tinitstr","out.tinitstr.cover");
 {
     local $/ = undef;
     my $fh;
-    open ($fh, "out.tinitstr");
+    open ($fh, $flogout);
     $logout = <$fh>;
-    open ($fh, "out.tinitstr.cover");
+    open ($fh, $flogcover);
     $logcover = <$fh>;
 }
 
@@ -58,10 +59,10 @@ like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: Seen Log Ev
   'log4perl.category.main.main.info.33' => 5,
   'log4perl.category.main.main.warn.32' => 5
 }\E)/,
-      "OK - Seen report looks good - look at t/out.cover.tinitstr");
+      "OK - Seen report in t/$flogcover");
 
 like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: UnSeen Log Events:, {}\E)/,
-      "OK - Un-Seen report looks good - look at t/out.cover.tinitstr");
+      "OK - Un-Seen report in t/$flogcover");
 
 like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: cat2data:, {
   'A.bar.debug.52' => 'debug_00003',
@@ -70,7 +71,7 @@ like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: cat2data:, 
   'main.main.info.33' => 'info_00005',
   'main.main.warn.32' => 'warn_00004'
 }\E)/,
-      "OK - cat-2-munged data looks good - look at t/out.cover.tinitstr");
+      "OK - cat-2-munged data in t/$flogcover");
 
 __END__
 

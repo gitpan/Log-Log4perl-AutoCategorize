@@ -1,4 +1,4 @@
-package Y;
+package Z;
 
 use Log::Log4perl::AutoCategorize (alias => 'Logger',
 				   # debug => 'vfmjrabc'

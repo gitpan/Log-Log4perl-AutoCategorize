@@ -4,14 +4,20 @@
 
 This tests that results are independent of the order in which various
 modules are 'use'd by the main program.  It system()s a script which
-can vary order of inclusion.
+can vary order of inclusion based upon cmdline options
 
 X.pm, Y.pm are essentially identical, and they must be, due to
 line-number checks done here.  Z.pm also shares common line numbers,
 allowing same testing for output.
 
-Z.pm differs in an important way; it uses a different alias, thus
-testing that multiple aliases are allowed (or at least not prohibited).
+Z.pm uses a different alias, thus testing that multiple aliases are
+allowed (or at least not prohibited).
+
+W.pm passes debug flags on its use-line, which affects debugging of
+all modules loaded afterwards (this is not specifically tested, but is
+evident in the stderr).  This is not a bug, while I could probably
+localize the debug output for only that usage, debugging was never
+intended to have such selectivity.
 
 =cut
 
@@ -27,33 +33,36 @@ use Test::More (tests => ( #
 			   4*3* (5+5*(2+2)+2+(2*2)) # 12 pairs
 			   + 6* (5+5*(2+1)+2+(2*1)) # 6  singles
 			   + 1* (5+5*(2+3)+2+(2*3)) # 1  triples
-			   + 1* (5+5*(2+4)+2+(2*4)) # 1  quad
+			   + 2* (5+5*(2+4)+2+(2*4)) # 2  quad
 			   ));
 
+my $inc;
+$inc = "aa"; # save test-output files individually
+
 # 3 tests of pairs, loaded b4 main
-runtest('XY', 'load X.pm, Y.pm before main() uses AutoCat');
+runtest('XY', 'load X.pm, Y.pm, then AutoCat');
 runtest('XZ', 'load X.pm, Z.pm, then AutoCat');
-runtest('YZ', 'load X.pm, Z.pm, then AutoCat');
+runtest('YZ', 'load Y.pm, Z.pm, then AutoCat');
 
 # 3 tests of pairs, loaded after main
 runtest('xy', 'load X.pm, Y.pm after main() uses AutoCat');
-runtest('xz', 'load X.pm, Y.pm after main() uses AutoCat');
-runtest('yz', 'load X.pm, Y.pm after main() uses AutoCat');
+runtest('xz', 'load X.pm, Z.pm after main() uses AutoCat');
+runtest('yz', 'load Y.pm, Z.pm after main() uses AutoCat');
 
 # 3 tests of pairs, mixed b4 & after
-runtest('Xy', 'load X.pm, Y.pm after main() uses AutoCat');
-runtest('Xz', 'load X.pm, Y.pm after main() uses AutoCat');
-runtest('Yz', 'load X.pm, Y.pm after main() uses AutoCat');
+runtest('Xy', 'load X.pm, AutoCat (from main), then Y.pm');
+runtest('Xz', 'load X.pm, AutoCat (from main), then Z.pm');
+runtest('Yz', 'load Y.pm, AutoCat (from main), then Z.pm');
 
 # 3 tests of pairs, mixed after & b4
-runtest('xY', 'load X.pm, Y.pm after main() uses AutoCat');
-runtest('xZ', 'load X.pm, Y.pm after main() uses AutoCat');
-runtest('yZ', 'load X.pm, Y.pm after main() uses AutoCat');
+runtest('xY', 'load Y.pm, AutoCat (from main), then X.pm');
+runtest('xZ', 'load Z.pm, AutoCat (from main), then X.pm');
+runtest('yZ', 'load Z.pm, AutoCat (from main), then Y.pm');
 
 # 6 tests of singles
 runtest('x', 'load AutoCat into main, then X.pm');
 runtest('y', 'load AutoCat into main, then Y.pm');
-runtest('z', 'load AutoCat into main, then X.pm');
+runtest('z', 'load AutoCat into main, then Z.pm');
 
 runtest('X', 'load X.pm, then AutoCat into main');
 runtest('Y', 'load Y.pm, then AutoCat into main');
@@ -63,7 +72,9 @@ runtest('Z', 'load Z.pm, then AutoCat into main');
 runtest('XYZ', 'load X.pm, Y.pm, Z.pm, then AutoCat');
 
 # now mix in use of UserLogger with aliases
-runtest('WXYZ', 'load X.pm, Y.pm, Z.pm, then AutoCat');
+runtest('WXYZ', 'load W.pm (with debug), X.pm, Y.pm, Z.pm, then AutoCat');
+
+runtest('wXYZ', 'load X.pm, Y.pm, Z.pm, then AutoCat into main, W.pm (with debug)');
 
 ########################
 
@@ -88,8 +99,11 @@ sub runtest {
 	$stdout = <$fh>;
 	open ($fh, "out.multi_pack.cover");
 	$stderr = <$fh>;
-	# GAK
-	#$stderr = $stdout;
+	if ($inc) {
+	    $inc++;
+	    rename "out.multi_pack", "out.multi_pack.$inc";
+	    rename "out.multi_pack.cover", "out.multi_pack.cover.$inc";
+	}
     }
     
     ok ($stdout, "got something on stdout");

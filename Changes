@@ -1,6 +1,16 @@
 Revision history for Perl extension Log::Log4perl::AutoCategorize.
 
-0.02  not yet released
+0.03  11/05/2003
+  - changed t/09_coexist_easy to work around new(v.38) l4p easy_init() behavior
+  - changed tests to BEGIN {clean output files}
+	this corrected false passes (when tests run individually, wo 99_cleanup.t)
+	99_cleanup.t still deletes at end of test, rename it to leave evidence.
+  - pod tweaks
+  - added t/W.pm, t/Z.pm to MANIFEST, dist
+	somehow missed note at bottom of 1 (long) cpan-tester message, sorry Jost
+	if $] > 5.008, you need a patch for optimizer - email me directly.
+
+0.02  CPANd 7/18/03
   - Devel::Size now optional
   - switch to Module::Build from MakeMaker
   - changed several package my variables to our (for easier debug)
@@ -9,8 +19,8 @@ Revision history for Perl extension Log::Log4perl::AutoCategorize.
     all coverage-report tests now use \d+ to match END lines. 
 	this is more tolerant of code changes
   - new tests:
-	05_initstr.t - overrides default conf w useargs: initstr => $string
-	06_conf_file.t - overrides default conf w useargs: initfile => $filename
+	05_initstr.t - overrides default conf w use-args: initstr => $string
+	06_conf_file.t - overrides default conf w use-args: initfile => $filename
 	07_coexist.t - coexistence with Log::Log4perl
 	08_options_more.t - tests -z, which uses Devel::Size
 	09_todo_coexist.t - try coexisting with Log::Log4perl ':easy'

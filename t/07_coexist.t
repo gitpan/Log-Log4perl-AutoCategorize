@@ -7,6 +7,7 @@ BEGIN {
     chdir 't' if -d 't';
     use lib '../lib';
     $ENV{PERL5LIB} = '../lib';    # so children will see it too
+    unlink <out.07*>;
 }
 
 use Test::More (tests => 48);
@@ -60,18 +61,3 @@ ok(@found == 0, "found 0 occurrences of 'this is debug', suppressed by config");
 
 __END__
 
-# dunno whether this should work, why it doesnt
-
-END {
-ok ($cover, "got something on cover");
-
-##########
-diag ("following tests look for expected line number reporting");
-
-like ($cover, qr/main.main.debug.36: 1/, 'found debug.36, 1st call');
-like ($cover, qr/main.main.debug.36: 2/, 'found debug.36, 2nd call');
-like ($cover, qr/main.main.info.37: one arg, /, 'found info.37, 1 arg ok');
-like ($cover, qr/main.main.warn.38: 2 args, /, 'found info.38, 2 args ok');
-
-##########
-}

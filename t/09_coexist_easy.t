@@ -3,12 +3,17 @@
 =head1 WHATS THIS
 
 test that AutoCategorize can be used in a program that also uses
-Log::Log4perl ':easy'.
+Log::Log4perl ':easy'.  It probably should have multiple classes
+which use alternate modes, but that for later.
 
-This test needs some work; the 2 loggers are not integrated.  I was
-unable to get :easy and AutoCategorize to both write to the same
-output file, I tried setting easy_init(file=>$file) to name given in
-log-conf.
+This test needs some work; while the 2 loggers share a single config,
+that config still specifies 2 separate output files, with 2 different
+layouts.
+
+So I should write several new tests; 
+* several packages in single file, with (easy, standard, auto)
+* same with 3 user packages in different files
+* sharing one log-file.
 
 But that said, both output files are getting the complete output, from
 both loggers (:easy and AutoCategorize).  Further, each has the
@@ -20,10 +25,11 @@ AutoCat builds the category from.  The difference is in the ability to
 filter on them, cuz theyre exposed in the category.
 
 
-use order matters; AutoCategorize must be 1st, cuz it adds 2 custom
-levels, which must be done before a logger is initialized, which is
-done by :easy.  Those custom levels arent central to the module, Ill
-probably make them optional/configurable in the next release.
+Note that use order matters; AutoCategorize must be 1st, cuz it adds 2
+custom levels, which must be done before a logger is initialized,
+which is done by :easy.  Those custom levels arent central to the
+module, Ill probably make them optional/configurable in the next
+release.
 
 
 =cut
@@ -33,20 +39,25 @@ BEGIN {
     chdir 't' if -d 't';
     use lib '../lib';
     $ENV{PERL5LIB} = '../lib';    # so children will see it too
+    unlink <out.09*>;
 }
 
 use Test::More (tests => 36);
 
-use Log::Log4perl::AutoCategorize (
-				   alias => 'myLogger',
-				   initfile => 'log-conf',
-				   );
+use Log::Log4perl::AutoCategorize ( alias => 'myLogger',
+				    initfile => 'log-conf', # no effect here
+				    );
 use Log::Log4perl qw(:easy);
-Log::Log4perl->easy_init ({ level => $INFO,
-			   file => "out.09_todo_coexist_easy",
-			   layout   => 'F=%F{1} M=%M L=%L: Cat=%c %m%n',
-			});
 
+myLogger->easy_init ({ level => $INFO,
+		       file => "out.09_coexist_easy_easyout",
+		       layout   => 'F=%F{1} M=%M L=%L: Cat=%c %m%n',
+		   });
+# add initialization wo resetting
+Log::Log4perl::Config->_init('log-conf');
+
+########################
+# start tests
 {
     # define another package to verify that pkgname is logged properly
     # note that this is NOT using t/A.pm
@@ -77,16 +88,17 @@ my ($stdout,$cover,$easy);
 {
     local $/ = undef;
     my $fh;
-    open ($fh, "out.09_todo_coexist");
+    open ($fh, "out.09_coexist_easy");
     $stdout = <$fh>;
     # cover wont be written till this test ends !
-    open ($fh, "out.09_todo_coexist.cover");
+    open ($fh, "out.09_coexist_easy.cover");
     $cover = <$fh>;
-    open ($fh, "out.09_todo_coexist_easy");
+    open ($fh, "out.09_coexist_easy_easyout");
     $easy = <$fh>;
 }
 
 ###############
+
 ok ($stdout, "got output from AutoCat logger");
 diag "test AutoCat output content vs expected logger layout";
 
@@ -117,8 +129,8 @@ ok(@found == 5, "found 5 occurrences of '$1'");
 ok(@found == 0, "found 0 occurrences of suppressed (by :easy config) msg");
 
 ##########
-ok ($stdout, "got output from :easy logger");
 diag "test :easy output content vs expected logger layout";
+ok ($easy, "got output from :easy logger");
 
 foreach my $i (1..5) {
     like ($easy, qr/Cat=main.main.warn.\d+ $i/ms, "found Cat=main.main.warn: $i");

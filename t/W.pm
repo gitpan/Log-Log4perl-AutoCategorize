@@ -1,7 +1,7 @@
-package Y;
+package W;
 
 use Log::Log4perl::AutoCategorize (alias => 'Logger',
-				   # debug => 'vfmjrabc'
+				   debug => 'vfmjrabc'
 				   );
 
 sub truck {
@@ -14,3 +14,4 @@ sub truck {
 
 __END__
 
+# this file turns on debugging output.  Its only used once by 10_multi_pack.t
