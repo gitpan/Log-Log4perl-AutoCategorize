@@ -15,7 +15,10 @@ local $" = "\n\t";
 my ($stdfile, $errfile) = qw( out.options.std out.options.err );
 
 #################
-diag "test options to print to stdout for; i-autoload invoke, b-build, c-category, a-caller-activity";
+diag "test options to print to stdout for; "
+    ."i-autoload invoke, b-build, c-category, a-caller-activity"
+    if $ENV{HARNESS_VERBOSE};
+
 system "perl dflt_stdout.pl -d iabc > $stdfile 2> $errfile";
 
 ok (!$@, 'no $@ errors');
@@ -44,7 +47,7 @@ while ($stdout =~ m/meth: (\w+(?:_000\d{2})?)/msg) {
     push @munged, $1;
 }
 @munged = sort @munged;
-diag "munged names reported: \n\t@munged\n";
+diag "munged names reported: \n\t@munged\n" if $ENV{HARNESS_VERBOSE};
 #printf "found %d munges\n", scalar @munged;
 ok (@munged == 17, '17 munged names');
 
@@ -55,7 +58,8 @@ while ($stdout =~ m/cat: (\w+(?:\.\w+)+)\n/msg) {
     push @cats, $1;
 }
 @cats = sort @cats;
-diag "categories reported: \n\t@cats\n";
+
+diag "categories reported: \n\t@cats\n"	if $ENV{HARNESS_VERBOSE};
 #printf "found %d categories\n", scalar @cats;
 ok (@cats == 17, '17 categories');
 
@@ -65,7 +69,8 @@ while ($stdout =~ m/building.*?: (\w+(?:\.\w+)+)\n/msg) {
     push @builds, $1;
 }
 @builds = sort @builds;
-diag "methods built: \n\t@builds\n";
+
+diag "methods built: \n\t@builds\n" if $ENV{HARNESS_VERBOSE};
 #printf "found %d built methods\n", scalar @builds;
 ok (@builds == 17, '17 methods built');
 

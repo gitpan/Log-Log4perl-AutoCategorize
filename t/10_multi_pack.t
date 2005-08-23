@@ -34,6 +34,7 @@ use Test::More (tests => ( #
 			   + 6* (5+5*(2+1)+2+(2*1)) # 6  singles
 			   + 1* (5+5*(2+3)+2+(2*3)) # 1  triples
 			   + 2* (5+5*(2+4)+2+(2*4)) # 2  quad
+			   + 21 # fudge factor
 			   ));
 
 my $inc;
@@ -81,14 +82,14 @@ runtest('wXYZ', 'load X.pm, Y.pm, Z.pm, then AutoCat into main, W.pm (with debug
 sub runtest {
     # run sub-prog, then test the output generated
 
-    my ($opt,$reason) = @_;
-    diag "";
-    diag $reason if $reason;
-
+    my ($opt,$purpose) = @_;
+    $purpose = ($purpose) ? $purpose : "no purpose given";
+    ok(1, $purpose);
+    $! = 0;
     system "perl multi_pack.pl -$opt";
 
-    ok (!$@, 'no $@ error');
-    ok (!$!, "no \$! error: $!");
+    ok (!$@, "no \$@ error, doing $purpose");
+    ok (!$!, "no \$! error: $!, doing $purpose");
     ok (!$?, 'exited with 0');
     
     my ($stdout,$stderr);

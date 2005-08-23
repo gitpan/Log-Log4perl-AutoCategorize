@@ -42,7 +42,8 @@ like ($stdout, qr/in Foo->bar\(1\)/ms, 'found Foo->bar(1) unmunged');
 ok ($stderr, "got something on stderr");
 
 ##########
-diag ("following tests look for expected line number reporting");
+diag ("following tests look for expected line number reporting")
+    if $ENV{HARNESS_VERBOSE};
 
 like ($stderr, qr/main.main.debug.36: 1/, 'found debug.36, 1st call');
 like ($stderr, qr/main.main.debug.36: 2/, 'found debug.36, 2nd call');
@@ -50,7 +51,8 @@ like ($stderr, qr/main.main.info.37: one arg, /, 'found info.37, 1 arg ok');
 like ($stderr, qr/main.main.warn.38: 2 args, /, 'found info.38, 2 args ok');
 
 ##########
-diag ("following tests check output of Data::Dumper");
+diag ("following tests check output of Data::Dumper")
+    if $ENV{HARNESS_VERBOSE};
 
 like ($stderr, qr/\Qmain.main.debug.39: [
   'arrayref'
@@ -78,7 +80,8 @@ like ($stderr, qr/\Qmain.main.info.41: [
       'found info.41 complex ref dump');
 
 ##########
-diag("following test nested use of logger - dunno why anyone would..");
+diag("following test nested use of logger - dunno why anyone would..")
+    if $ENV{HARNESS_VERBOSE};
 
 like ($stderr, qr/\Qmain.main.info.44: {
   'inner' => 'call to same fn'
@@ -100,7 +103,8 @@ like ($stderr, qr/\Qmain.main.info.47: logged nested, {
       'found outer info() invocation');
 
 ##########
-diag ("now check logging from user functions and packages");
+diag ("now check logging from user functions and packages")
+    if $ENV{HARNESS_VERBOSE};
 
 like ($stderr, qr/\Qmain.usersub.info.54: logging from main function, [
   1
@@ -123,7 +127,8 @@ like ($stderr, qr/\QFoo.uselogger.debug.24: logging from Foo, [
       'call from user package, with arrayref of 2 args');
 
 ##########
-diag ("now test contents of coverage report");
+diag ("now test contents of coverage report")
+    if $ENV{HARNESS_VERBOSE};
 
 like ($stderr, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: Seen Log Events:, {
   'Log.Log4perl.AutoCategorize.END.info.\E\d+\Q' => 1,
@@ -153,7 +158,8 @@ like ($stderr, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: UnSeen Log Ev
       "OK - Un-Seen report looks good - look at t/out.basic.stderr");
 
 ##########
-diag ("\nall done. now the Loggers (see test 1) END block reports ...\n\n");
+diag ("\nall done. now the Loggers (see test 1) END block reports ...\n\n")
+    if $ENV{HARNESS_VERBOSE};
 
 __END__
 

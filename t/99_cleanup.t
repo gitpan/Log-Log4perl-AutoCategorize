@@ -7,7 +7,8 @@ BEGIN {
 }
 use Test::More tests => 1;
 
-diag "deleting test output files: ". `ls out.*`;
-system 'rm out.*';
+diag "deleting test output files: ". `ls out.*`	if $ENV{TEST_VERBOSE};
+
+system 'rm out.*' unless $ENV{TEST_POSTMORTEM};
 
 ok(1);

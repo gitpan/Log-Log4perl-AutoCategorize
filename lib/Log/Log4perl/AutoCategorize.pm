@@ -1,7 +1,7 @@
 
 package Log::Log4perl::AutoCategorize;
 use strict;
-our $VERSION = "0.03";
+our $VERSION = "0.03_51";
 
 use Carp;
 use IO::File;
@@ -533,13 +533,16 @@ for comparison;
 
 =head1 SYNOPSIS
 
+  # use pre-defined logging - to stdout
+  use Log::Log4perl::AutoCategorize;
+
+  # OR separate your log-config (standard practice)
+  use Log::Log4perl::AutoCategorize ( initfile => $filename );
+
+  # OR define your config inline (for development)
   use Log::Log4perl::AutoCategorize
     (
      alias => 'Logger', # shorthand class-name alias
-     # you can initialize in use statement
-     #  1st way gives separation of code from config
-     #  2nd way is good for demonstration and early development
-     initfile => $filename,
      initstr => q{
          # see Log4perl docs to understand these directives
 	 log4perl.rootLogger=DEBUG, A1
@@ -590,9 +593,8 @@ for comparison;
 
 Before diving in, a few notes:
 
-This is not intended to document Log4perl (also l4p, abbrev for
-Log::Log4perl); that documentation is a good tutorial, and is quite
-thorough and complete.
+This is not intended to document Log4perl (aka: l4p,) which already
+has excellent documentation.
 
 In this document, I use B<Logger> as the I<official> shorthand for
 Log::Log4perl::AutoCategorize, as it gets tedious and verbose to
@@ -654,8 +656,9 @@ help that made it easy to do so.
 =head1 Test Coverage Results of your Application
 
 When your code uses this module, the logging calls are categorized and
-counted; this is reported when the program terminates.  The info is
-returned in 3 chunks.
+counted; this is reported (to standard out, if you don't override the
+default-config) when the program terminates.  The info is returned in
+3 chunks.
 
 =head2 Seen: How many times each invocation was called
 
@@ -1073,11 +1076,31 @@ customization with objects and their attributes.
 
 =head1 BUGS
 
+=head2 runaway process in Debugger 
+
+When I run a program using this module in debugger, and I hit
+control-P (Im an emacs user, so I do it habitually), the process runs
+amok, and I have to terminate it from another window.  If youre a vi
+user, this is less of a problem, but it warrants keeping this module
+in ALPHA state.  Its also the reason for the many debugging flags.
+
+=head2 abusable category extension
+
 The category extension can be abused; you can independently suppress
 warn() while elevating debug(), leading to surprises in what output
 goes where.  But this can be used sanely, so I dont consider worth
 disabling.  I could be convinced to optionally report it; as ever, a
 patch is a compelling argument.
+
+=head1 TODO
+
+=head2 quieter tests
+
+For ease of immediate use, this module defines a default logging
+config that writes to stdout.  This however makes the most basic tests
+also write to stdout, which is disconcerting for some would-be users.
+
+=head2 better test coverage support
 
 The %Seen report can never contain the categories of unexecuted
 functions, since the catalog entry is created by AUTOLOAD, which is
@@ -1093,11 +1116,10 @@ never run if the function isnt executed.  Ive thought of a few
        line-numbered log-specs, been moved by a mere comment. Note
        though that reset control could be added to API.
 
-Debugging your code can be problematic; it seems to undo emacs
-keybindings; a ctrl-P (previous command) will send it into a
-cpu-sucking vortex.  This is the reason for the many debugging flags.
+Its probably occurred to you that Devel::Cover does all these things.
+It is however unsuitable for use in production code, and l4p's runtime
+reconfiguarability is quite valuable there.
 
-=head1 TODO
 
 =head2 better interoperation with l4p easy_init()
 
@@ -1114,8 +1136,8 @@ the Dumper output, and/or print just the strings.
 But to do this via the log-config, the config-item syntax must be
 extended; either by adding new attributes, or by allowing new values.
 Either approach compromises interoperability with log4java config
-files. These possible config-schemes should therefore be considered
-speculative;
+files, so these possible config-schemes should therefore be considered
+highly speculative (mostly here to elicit better ideas);
 
     # using extra param
     log4perl.category.TestUtils.testcase_applies = DEBUG, 0
@@ -1197,10 +1219,11 @@ message issued.
 See also L</BUGS/Seen.2>.  While it borders on the baroque, its
 possible to tie %TotalInvocations to a DBM or Storable file, whose
 name is controlled by your log-config.  Then you could use Log4perl''s
-logitem = sub{} to syncronize the filename to your VERSION; either
+logitem = sub{} to synchronize the filename to your VERSION; either
 $package::VERSION, a complete CVS Revision, or to your application
 Version.  Interestingly, this could give some insight into longer-term
-code evolution.
+code evolution.  See how Devel::Cover does it.
+
 
 =head2 Improve the documentation
 
@@ -1216,16 +1239,10 @@ actually gave based upon their valuable comments.  If these are
 helpful, please let me know how they could be folded into this
 document to improve clarity and/or remove redundancy.
 
-=head2 Provide patches to optimizer, B-Generate
+=head2 Provide patches to optimizer, B-Generate (DONE)
 
 To use this package on perl 5.8.1+ you need to patch both optimizer,
-B-Generate for updated internals.  I have patches that worked for me
-on both 5.8.0 and 5.8.1, but Arthur hasnt commented on them.
-
-I recently discovered that B::Generate is supposed to work as far back
-as 5.5.62, and I cant build it against 5.6.2-pre.  I will probably put
-the patches on CPAN, but email me directly if you dont find them, or
-if they dont work for you.
+B-Generate for updated internals.  I have patches on CPAN.
 
 =head1 More TODO
 

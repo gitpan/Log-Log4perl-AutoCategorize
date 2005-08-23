@@ -4,7 +4,7 @@
 
 test that AutoCategorize can be used in a program that also uses
 Log::Log4perl ':easy'.  It probably should have multiple classes
-which use alternate modes, but that for later.
+which use alternate modes, but thats for later, maybe.
 
 This test needs some work; while the 2 loggers share a single config,
 that config still specifies 2 separate output files, with 2 different
@@ -100,7 +100,8 @@ my ($stdout,$cover,$easy);
 ###############
 
 ok ($stdout, "got output from AutoCat logger");
-diag "test AutoCat output content vs expected logger layout";
+diag "test AutoCat output content vs expected logger layout"
+    if $ENV{HARNESS_VERBOSE};
 
 foreach my $i (1..5) {
     like ($stdout, qr/main.main.warn.\d+: $i/ms, "found main.main.warn: $i");
@@ -129,7 +130,8 @@ ok(@found == 5, "found 5 occurrences of '$1'");
 ok(@found == 0, "found 0 occurrences of suppressed (by :easy config) msg");
 
 ##########
-diag "test :easy output content vs expected logger layout";
+diag "test :easy output content vs expected logger layout"
+    if $ENV{HARNESS_VERBOSE};
 ok ($easy, "got output from :easy logger");
 
 foreach my $i (1..5) {

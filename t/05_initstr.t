@@ -9,7 +9,7 @@ BEGIN {
 
 use Test::More (tests => 12);
 
-diag ("test a non-default initstr");
+diag ("test a non-default initstr") if $ENV{HARNESS_VERBOSE};
 
 $!=0;
 # hide stderr, not helpful
@@ -34,7 +34,8 @@ ok ($logout, "got something on stdout");
 ok ($logcover, "got something on logcover");
 
 ##########
-diag ("following tests look for expected logging output, with line numbers");
+diag ("following tests look for expected logging output, with line numbers")
+    if $ENV{HARNESS_VERBOSE};
 
 like ($logout, qr/main.main.warn.32: 1/, 'found warn.31, 1st call');
 like ($logout, qr/main.main.info.33: 2/, 'found info.32, 2nd call');
@@ -49,7 +50,8 @@ like ($logout, qr/\QA.bar.warn.51: 5, [
 
 ##########
 
-diag ("now test contents of coverage report");
+diag ("now test contents of coverage report")
+    if $ENV{HARNESS_VERBOSE};
 
 like ($logcover, qr/(\QLog.Log4perl.AutoCategorize.END.info.\E\d+\Q: Seen Log Events:, {
   'Log.Log4perl.AutoCategorize.END.info.\E\d+\Q' => 1,
